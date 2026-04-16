@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #0a1628;
+  --navy-mid: #132040;
+  --navy-light: #1e3058;
+  --navy-card: #162035;
+  --gold: #c9a84c;
+  --gold-light: #e8c96a;
+  --gold-dark: #9a7a2e;
+  --gold-glow: rgba(201, 168, 76, 0.15);
+  --text: #e8eaf0;
+  --text-muted: #8a9bb5;
+  --border: rgba(201, 168, 76, 0.2);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--navy);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--navy); }
+::-webkit-scrollbar-thumb { background: var(--navy-light); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
+
+/* Recharts custom styling */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #132040 !important;
+  border: 1px solid rgba(201,168,76,0.3) !important;
+  border-radius: 8px !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(255,255,255,0.04) !important;
+}
+
+.recharts-text { fill: #8a9bb5 !important; font-size: 11px; }
