@@ -104,6 +104,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+WHITENOISE_ROOT = BASE_DIR / 'frontend_build'
 STATICFILES_DIRS = [BASE_DIR / 'frontend_build' / 'static'] if (BASE_DIR / 'frontend_build' / 'static').exists() else []
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
