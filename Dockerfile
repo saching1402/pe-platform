@@ -22,5 +22,4 @@ WORKDIR /app/backend
 RUN python manage.py collectstatic --noinput
 
 EXPOSE 8080
-
-CMD gunicorn pe_platform.wsgi --workers 2 --bind 0.0.0.0:${PORT:-8080}
+CMD python manage.py migrate --noinput && (python manage.py seed_data --file data/fund_data.xlsx || true) && gunicorn pe_platform.wsgi --workers 2 --bind 0.0.0.0:${PORT:-8080}
