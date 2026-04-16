@@ -3,14 +3,14 @@ nixPkgs = ["python311", "nodejs_20"]
 
 [phases.install]
 cmds = [
-  "cd backend && pip install -r requirements.txt",
-  "cd frontend && npm install",
-  "cd frontend && npm run build"
+    "cd backend && pip3 install -r requirements.txt",
+      "cd frontend && npm install",
+        "cd frontend && npm run build"
 ]
 
 [phases.build]
 cmds = [
-  "cd backend && python manage.py collectstatic --noinput"
+    "cd backend && python3 manage.py collectstatic --noinput"
 ]
 
 [start]
