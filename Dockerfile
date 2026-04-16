@@ -13,7 +13,7 @@ RUN cd frontend && npm install
 COPY frontend/ ./frontend/
 COPY backend/ ./backend/
 
-RUN cd frontend && npm run build && mkdir -p /app/backend/frontend_build && cp -r /app/frontend/dist/. /app/backend/frontend_build/
+RUN cd frontend && npm run build
 
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
