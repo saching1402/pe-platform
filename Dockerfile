@@ -2,8 +2,8 @@ FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-        apt-get install -y nodejs && \
-            apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN cd frontend && npm install
 COPY frontend/ ./frontend/
 COPY backend/ ./backend/
 
-RUN cd frontend && npm run build
+RUN cd frontend && npm run build && mkdir -p /app/backend/frontend_build && cp -r /app/frontend/dist/. /app/backend/frontend_build/
 
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
