@@ -123,6 +123,7 @@ class Command(BaseCommand):
                     vintage=safe_int(row.get('Vintage')),
                     fund_size=safe_float(row.get('Fund Size')),
                     fund_type=str(row.get('Fund Type', '') or '').strip() or None,
+                    strategy=str(manager.strategy or '').strip() or None,
                     investments=safe_float(row.get('Investments')),
                     irr=safe_float(row.get('IRR')),
                     tvpi=safe_float(row.get('TVPI')),
