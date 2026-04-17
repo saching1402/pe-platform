@@ -23,4 +23,6 @@ class Migration(migrations.Migration):
                 ],
                 max_length=50,
                 null=True,
-       
+            ),
+        ),
+    ]
