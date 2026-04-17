@@ -1,18 +1,81 @@
 from django.db.models import Avg, Count, Q, FloatField
 from django.db.models.functions import Coalesce
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action
+from rest_framework.decorators import api_view, action, permission_classes, authentication_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
-from .models import FundManager, Fund, WorkflowTask, TaskComment
+from .models import FundManager, Fund, WorkflowTask, TaskComment, PlatformUser
 from .serializers import (
     FundManagerListSerializer, FundManagerDetailSerializer,
     FundSerializer, WorkflowTaskSerializer, TaskCommentSerializer,
     OverviewStatsSerializer, VintageStatsSerializer,
 )
+
+
+# ──────────────────────────────────────────────
+# Auth views  (no authentication required)
+# ──────────────────────────────────────────────
+
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def login_view(request):
+    email = request.data.get('email', '').strip().lower()
+    password = request.data.get('password', '')
+
+    if not email or not password:
+        return Response({'error': 'Email and password are required.'}, status=400)
+
+    try:
+        user = PlatformUser.objects.get(email__iexact=email, is_active=True)
+    except PlatformUser.DoesNotExist:
+        return Response({'error': 'Invalid email or password.'}, status=401)
+
+    if not user.check_password(password):
+        return Response({'error': 'Invalid email or password.'}, status=401)
+
+    user.last_login = timezone.now()
+    user.save(update_fields=['last_login'])
+
+    request.session['platform_user_id'] = user.id
+    request.session['platform_user_email'] = user.email
+    request.session.save()
+
+    return Response({'id': user.id, 'email': user.email})
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def logout_view(request):
+    request.session.flush()
+    return Response({'ok': True})
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def me_view(request):
+    user_id = request.session.get('platform_user_id')
+    if not user_id:
+        return Response({'error': 'Not authenticated.'}, status=401)
+    try:
+        user = PlatformUser.objects.get(id=user_id, is_active=True)
+        return Response({'id': user.id, 'email': user.email})
+    except PlatformUser.DoesNotExist:
+        request.session.flush()
+        return Response({'error': 'Not authenticated.'}, status=401)
 
 
 # ──────────────────────────────────────────────
@@ -38,6 +101,7 @@ class FundFilter(django_filters.FilterSet):
     vintage_min = django_filters.NumberFilter(field_name='vintage', lookup_expr='gte')
     vintage_max = django_filters.NumberFilter(field_name='vintage', lookup_expr='lte')
     fund_type = django_filters.CharFilter(lookup_expr='iexact')
+    strategy = django_filters.CharFilter(lookup_expr='iexact')
     quartile = django_filters.CharFilter(field_name='fund_quartile', lookup_expr='icontains')
     min_irr = django_filters.NumberFilter(field_name='irr', lookup_expr='gte')
     max_irr = django_filters.NumberFilter(field_name='irr', lookup_expr='lte')
@@ -46,7 +110,7 @@ class FundFilter(django_filters.FilterSet):
 
     class Meta:
         model = Fund
-        fields = ['vintage', 'fund_type', 'quartile', 'min_irr', 'max_irr', 'min_tvpi', 'manager_name']
+        fields = ['vintage', 'fund_type', 'strategy', 'quartile', 'min_irr', 'max_irr', 'min_tvpi', 'manager_name']
 
 
 # ──────────────────────────────────────────────
@@ -183,3 +247,120 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     serializer_class = TaskCommentSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['task']
+
+
+# ──────────────────────────────────────────────
+# Excel Export
+# ──────────────────────────────────────────────
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def export_funds_excel(request):
+    """Export all fund details (with strategy) to an Excel file."""
+    # Apply same filters as the FundViewSet
+    qs = Fund.objects.select_related('manager').all()
+
+    # Optional filters from query params
+    strategy = request.query_params.get('strategy')
+    fund_type = request.query_params.get('fund_type')
+    vintage = request.query_params.get('vintage')
+    quartile = request.query_params.get('quartile')
+    min_irr = request.query_params.get('min_irr')
+
+    if strategy:
+        qs = qs.filter(strategy__iexact=strategy)
+    if fund_type:
+        qs = qs.filter(fund_type__iexact=fund_type)
+    if vintage:
+        qs = qs.filter(vintage=vintage)
+    if quartile:
+        qs = qs.filter(fund_quartile__icontains=quartile)
+    if min_irr:
+        qs = qs.filter(irr__gte=min_irr)
+
+    qs = qs.order_by('-irr')
+
+    # Build workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Fund Details'
+
+    # Styles
+    header_font = Font(bold=True, color='0A1628', size=11)
+    header_fill = PatternFill(start_color='F0B429', end_color='F0B429', fill_type='solid')
+    header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    thin_border = Border(
+        left=Side(style='thin', color='CCCCCC'),
+        right=Side(style='thin', color='CCCCCC'),
+        top=Side(style='thin', color='CCCCCC'),
+        bottom=Side(style='thin', color='CCCCCC'),
+    )
+    alt_fill = PatternFill(start_color='F8F9FA', end_color='F8F9FA', fill_type='solid')
+
+    # Headers
+    headers = [
+        'Fund ID', 'Manager', 'Fund Name', 'Vintage', 'Strategy',
+        'Fund Type', 'Fund Size ($M)', '# Investments',
+        'IRR (%)', 'TVPI (x)', 'DPI (x)', 'RVPI (x)',
+        'Quartile', 'IRR Benchmark', 'TVPI Benchmark', 'DPI Benchmark',
+        'As Of Quarter', 'As Of Year',
+        'Preferred Geography', 'Preferred Industry',
+    ]
+
+    col_widths = [18, 30, 35, 10, 14, 22, 16, 14, 10, 10, 10, 10, 22, 14, 14, 14, 14, 12, 30, 30]
+
+    ws.row_dimensions[1].height = 30
+    for col_idx, (header, width) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # Data rows
+    for row_idx, fund in enumerate(qs, start=2):
+        row_fill = alt_fill if row_idx % 2 == 0 else None
+        values = [
+            fund.fund_id,
+            fund.manager.name,
+            fund.fund_name,
+            fund.vintage,
+            fund.strategy or '',
+            fund.fund_type or '',
+            round(fund.fund_size, 1) if fund.fund_size is not None else '',
+            int(fund.investments) if fund.investments is not None else '',
+            round(fund.irr, 1) if fund.irr is not None else '',
+            round(fund.tvpi, 2) if fund.tvpi is not None else '',
+            round(fund.dpi, 2) if fund.dpi is not None else '',
+            round(fund.rvpi, 2) if fund.rvpi is not None else '',
+            fund.fund_quartile or '',
+            round(fund.irr_benchmark, 1) if fund.irr_benchmark is not None else '',
+            round(fund.tvpi_benchmark, 2) if fund.tvpi_benchmark is not None else '',
+            round(fund.dpi_benchmark, 2) if fund.dpi_benchmark is not None else '',
+            fund.as_of_quarter or '',
+            fund.as_of_year or '',
+            fund.preferred_geography or '',
+            fund.preferred_industry or '',
+        ]
+        for col_idx, value in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+            if row_fill:
+                cell.fill = row_fill
+
+    # Freeze header row
+    ws.freeze_panes = 'A2'
+
+    # Auto filter
+    ws.auto_filter.ref = f'A1:{get_column_letter(len(headers))}1'
+
+    # Stream response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="fund_details_export.xlsx"'
+    wb.save(response)
+    return response

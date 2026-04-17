@@ -9,7 +9,7 @@ class FundSerializer(serializers.ModelSerializer):
         model = Fund
         fields = [
             'id', 'fund_id', 'manager', 'manager_name', 'fund_name',
-            'vintage', 'fund_size', 'fund_type', 'investments',
+            'vintage', 'fund_size', 'fund_type', 'strategy', 'investments',
             'irr', 'tvpi', 'rvpi', 'dpi', 'fund_quartile',
             'irr_benchmark', 'tvpi_benchmark', 'dpi_benchmark',
             'as_of_quarter', 'as_of_year',

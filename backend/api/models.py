@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.hashers import make_password, check_password as check_pw
 
 
 class FundManager(models.Model):
@@ -44,6 +45,14 @@ class Fund(models.Model):
         ('Growth/Expansion', 'Growth/Expansion'),
         ('Diversified Private Equity', 'Diversified Private Equity'),
     ]
+    STRATEGY_CHOICES = [
+        ('MM', 'Middle Market'),
+        ('LMM', 'Lower Middle Market'),
+        ('UMM', 'Upper Middle Market'),
+        ('Large Cap', 'Large Cap'),
+        ('Growth', 'Growth'),
+        ('Other', 'Other'),
+    ]
 
     fund_id = models.CharField(max_length=50, unique=True, db_index=True)
     manager = models.ForeignKey(FundManager, on_delete=models.CASCADE, related_name='funds')
@@ -51,6 +60,7 @@ class Fund(models.Model):
     vintage = models.IntegerField(null=True, blank=True, db_index=True)
     fund_size = models.FloatField(null=True, blank=True)
     fund_type = models.CharField(max_length=50, null=True, blank=True, choices=FUND_TYPE_CHOICES)
+    strategy = models.CharField(max_length=50, null=True, blank=True, choices=STRATEGY_CHOICES)
     investments = models.FloatField(null=True, blank=True)
     irr = models.FloatField(null=True, blank=True)
     tvpi = models.FloatField(null=True, blank=True)
@@ -118,3 +128,26 @@ class TaskComment(models.Model):
 
     def __str__(self):
         return f"{self.author} on {self.task}"
+
+
+class PlatformUser(models.Model):
+    """Authenticated user who can access the platform"""
+    email = models.EmailField(unique=True, db_index=True)
+    password_hash = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['email']
+        verbose_name = 'Platform User'
+        verbose_name_plural = 'Platform Users'
+
+    def __str__(self):
+        return self.email
+
+    def set_password(self, raw_password):
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        return check_pw(raw_password, self.password_hash)
